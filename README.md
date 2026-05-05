@@ -187,6 +187,7 @@ python scripts/security_tests.py
   * Admin-only functions are protected
   * Unauthorized access results in transaction failure
 
+
 ---
 
 ## 👨‍💻 Authors
