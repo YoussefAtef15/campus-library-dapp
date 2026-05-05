@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — Campus Library DApp</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;800;900&family=Source+Sans+3:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="main" style="margin-left:0">
+    <div class="topbar">
+      <div class="tb-left">
+        <a href="/" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--fg)">
+          <div style="width:32px;height:32px;border-radius:8px;background:var(--pri);display:flex;align-items:center;justify-content:center;color:#fff;font-size:.8rem"><i class="fas fa-book-open"></i></div>
+          <h2>Library Dashboard</h2>
+        </a>
+      </div>
+      <div class="tb-right">
+        <a href="/" class="btn btn-o btn-sm"><i class="fas fa-home"></i> Library</a>
+        <a href="/admin" class="btn btn-a btn-sm"><i class="fas fa-shield-halved"></i> Admin</a>
+      </div>
+    </div>
+    <div class="content">
+      <div class="stat-row" id="dashStats"></div>
+      <div class="grid2e">
+        <div class="card">
+          <div class="ct"><i class="fas fa-fire"></i> Most Borrowed Books</div>
+          <div class="tw" id="topBk"></div>
+        </div>
+        <div class="card">
+          <div class="ct"><i class="fas fa-users"></i> Top 3 Active Users</div>
+          <div id="topUs"></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:18px">
+        <div class="ct"><i class="fas fa-link"></i> Blockchain Info</div>
+        <p style="color:var(--fg2);font-size:.88rem">This dashboard reads all data directly from the Ganache blockchain via the Flask API. Stats include every transaction from block 0 to the latest block.</p>
+      </div>
+    </div>
+  </div>
+  <div class="toast-w" id="toastW"></div>
+  <script src="js/api.js"></script>
+  <script>
+    // Dashboard-only script: load stats without sidebar/login
+    document.addEventListener("DOMContentLoaded", async () => {
+      try {
+        const data = await Api.getStats();
+
+        let lbcVal = data.total_minted;
+        let lbcLbl = "LBC Minted";
+        let txVal = data.total_transactions;
+        let txLbl = "On-Chain Tx";
+
+        const pk = sessionStorage.getItem("library_pk");
+        if (pk) {
+            try {
+                const userData = await Api.login(pk, false);
+                if (!userData.is_admin) {
+                    const balData = await Api.getBalance(userData.address);
+                    const histData = await Api.getHistory(userData.address);
+                    lbcVal = balData.coin_readable;
+                    lbcLbl = "My LBC Balance";
+                    txVal = (histData.activities || []).length;
+                    txLbl = "My Transactions";
+                }
+            } catch(e) {}
+        }
+
+        document.getElementById("dashStats").innerHTML = `
+          <div class="stat-box"><div class="si" style="background:var(--pri3);color:var(--pri)"><i class="fas fa-book"></i></div><div><div class="sn">${data.total_books}</div><div class="sl">Total Books</div></div></div>
+          <div class="stat-box"><div class="si" style="background:#E8F5E9;color:var(--success)"><i class="fas fa-check-circle"></i></div><div><div class="sn">${data.available}</div><div class="sl">Available</div></div></div>
+          <div class="stat-box"><div class="si" style="background:#FFF3E0;color:var(--warn)"><i class="fas fa-coins"></i></div><div><div class="sn">${lbcVal}</div><div class="sl">${lbcLbl}</div></div></div>
+          <div class="stat-box"><div class="si" style="background:#E8EAF6;color:#283593"><i class="fas fa-link"></i></div><div><div class="sn">${txVal}</div><div class="sl">${txLbl}</div></div></div>
+        `;
+        const booksData = (await Api.getBooks()).books || [];
+        const sorted = [...booksData].sort((a,b)=>b.borrowCount-a.borrowCount).slice(0,5);
+        document.getElementById("topBk").innerHTML = `<table><thead><tr><th>#</th><th>Title</th><th>Base Price</th><th>Borrows</th><th>Status</th></tr></thead><tbody>${sorted.map((b,i)=>`<tr><td>${i+1}</td><td style="font-weight:600">${b.title}</td><td style="color:var(--accent); font-weight:600;">${b.basePrice !== undefined ? b.basePrice + ' LBC' : '-'}</td><td><strong>${b.borrowCount}</strong></td><td><span class="badge ${b.available?'b-g':'b-r'}">${b.available?'Available':'Borrowed'}</span></td></tr>`).join("")}</tbody></table>`;
+        const medals=["#C8913A","#9E9E9E","#8D6E63"];
+        document.getElementById("topUs").innerHTML = (data.top_users||[]).map((u,i)=>`
+          <div style="display:flex;align-items:center;gap:11px;padding:11px 0;${i<(data.top_users||[]).length-1?'border-bottom:1px solid var(--border);':''}">
+            <div style="width:30px;height:30px;border-radius:50%;background:${medals[i]}18;color:${medals[i]};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.8rem">${i+1}</div>
+            <div style="flex:1"><div style="font-weight:600;font-size:.88rem">${u.address.slice(0,8)}...${u.address.slice(-6)}</div><div style="font-size:.74rem;color:var(--fg2);font-family:monospace">${u.address}</div></div>
+            <div style="font-weight:700;color:var(--pri)">${u.count} tx</div>
+          </div>
+        `).join("")||'<p style="color:var(--fg2)">No activity yet.</p>';
+      } catch(e) {
+        document.querySelector(".content").innerHTML = `<div class="albar e"><i class="fas fa-exclamation-circle"></i> Could not connect to the backend. Make sure Ganache is running and auto_setup.py has been executed.</div>`;
+      }
+    });
+  </script>
+</body>
+</html>

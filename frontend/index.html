@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Campus Library — Blockchain DApp</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;800;900&family=Source+Sans+3:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* Styling for the dynamic batch input rows to match the theme */
+    .batch-row { display: flex; gap: 10px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+    .batch-row:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+    .batch-row .fg { flex: 1; margin-bottom: 0; }
+    .batch-count-ctl { display: flex; align-items: center; gap: 15px; margin-bottom: 20px; padding: 15px; background: var(--bg-card); border-radius: 8px; border: 1px solid var(--border); }
+
+    /* Confirmation Modal Styling */
+    .confirm-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(5px); }
+    .confirm-card { background: var(--card2); border-radius: 16px; padding: 30px; max-width: 400px; width: 100%; box-shadow: var(--shadow2); text-align: center; }
+    .confirm-icon { font-size: 3rem; color: var(--danger); margin-bottom: 15px; }
+
+    /* Borrow Modal Styling */
+    .borrow-modal-card { max-width: 450px; text-align: left; }
+    .borrow-book-info { display: flex; gap: 15px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid var(--border); }
+    .borrow-book-img { width: 80px; height: 110px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
+    .borrow-book-details h3 { font-size: 1.1rem; margin-bottom: 5px; }
+    .borrow-book-details p { color: var(--fg2); font-size: 0.85rem; margin-bottom: 5px; }
+    .borrow-price-summary { background: var(--bg); padding: 15px; border-radius: 10px; margin-top: 15px; border: 1px dashed var(--accent); }
+    .borrow-price-row { display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 8px; }
+    .borrow-price-total { display: flex; justify-content: space-between; font-weight: 800; font-size: 1.1rem; color: var(--accent); margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+
+    /* Secure PDF Viewer Overlay with Drawing Support */
+    .pdf-overlay { position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,0.9); display: none; flex-direction: column; }
+    .pdf-header { height: 60px; background: #111; color: #fff; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; }
+    .pdf-title { font-family: 'Playfair Display', serif; font-size: 1.2rem; }
+    .pdf-tools { display: flex; gap: 10px; align-items: center; }
+    .pdf-close { background: transparent; border: none; color: #fff; font-size: 1.5rem; cursor: pointer; transition: color 0.2s; }
+    .pdf-close:hover { color: var(--danger); }
+
+    .pdf-container { flex: 1; position: relative; width: 100%; height: calc(100vh - 60px); display: flex; justify-content: center; align-items: center; }
+    .pdf-iframe { width: 80%; height: 95%; border: none; background: #fff; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+
+    /* PDF Drawing Canvas */
+    .pdf-canvas { position: absolute; left: 10%; width: 80%; height: 95%; pointer-events: none; z-index: 20; border-radius: 8px; }
+
+    /* Custom File Input Styling */
+    .file-input-wrapper { position: relative; width: 100%; }
+    .file-input-wrapper input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; z-index: 2; }
+    .file-input-display { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 13px; border: 1.5px dashed var(--border); border-radius: 10px; background: var(--bg); color: var(--fg2); font-size: .88rem; transition: border-color .2s; overflow: hidden; }
+    .file-input-wrapper:hover .file-input-display { border-color: var(--accent); }
+    .file-input-display i { color: var(--pri); flex-shrink: 0; }
+    /* This class prevents long filenames from breaking layout */
+    .file-name-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
+  </style>
+</head>
+<body oncontextmenu="return checkContext(event);">
+
+  <!-- Login Overlay -->
+  <div class="login-overlay" id="loginOverlay">
+    <div class="login-card">
+      <div class="login-icon"><i class="fas fa-book-open"></i></div>
+      <h2 style="font-size:1.5rem;font-weight:900;margin-bottom:5px">Campus Library DApp</h2>
+      <p style="color:var(--fg2);font-size:.92rem;margin-bottom:22px">Connect your wallet to access the blockchain registry.</p>
+      <form id="loginForm" onsubmit="return doLogin(event)">
+        <div class="fg">
+          <label class="fl">Private Key</label>
+          <input class="fi" id="loginKey" type="password" placeholder="Paste your Ganache private key" required>
+        </div>
+        <div id="loginErr" style="color:var(--danger);font-size:.82rem;margin-bottom:8px;display:none"></div>
+        <button type="submit" class="btn btn-p" style="width:100%;justify-content:center;padding:11px">Connect & Enter</button>
+        <p style="margin-top:14px;font-size:.78rem;color:var(--fg2)">Or use the <a href="/admin" style="color:var(--accent);font-weight:600">Admin Panel</a></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Ownership Transfer Confirmation Modal -->
+  <div class="confirm-overlay" id="confirmOverlay">
+    <div class="confirm-card">
+      <div class="confirm-icon"><i class="fas fa-triangle-exclamation"></i></div>
+      <h2 style="margin-bottom: 10px;">Are you sure?</h2>
+      <p style="color:var(--fg2);font-size:.9rem;margin-bottom:20px;">You are about to transfer Admin Ownership to <br><strong id="confirmAddrDisplay" style="font-family:monospace; color:var(--fg); display:block; margin-top:5px; word-break:break-all;"></strong><br>This action is <strong>irreversible</strong>.</p>
+      <div style="display:flex;gap:10px;justify-content:center;">
+        <button class="btn btn-o" onclick="document.getElementById('confirmOverlay').style.display='none'">Cancel</button>
+        <button class="btn btn-d" id="btnConfirmXfer">Yes, Transfer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Manage Books Update/Delete Modal (For Admin Dashboard Sync) -->
+  <div class="confirm-overlay" id="manageBookModal">
+    <div class="confirm-card" style="max-width: 500px; text-align: left;">
+      <h2 style="margin-bottom: 15px; font-size: 1.3rem;">Manage Book</h2>
+      <input type="hidden" id="editBookId">
+      <input type="hidden" id="editExistingImageHash">
+      <input type="hidden" id="editExistingPdfHash">
+
+      <div class="fg"><label class="fl">Title</label><input class="fi" id="editTitle" placeholder="Book title"></div>
+      <div class="fg"><label class="fl">Author</label><input class="fi" id="editAuthor" placeholder="Author name"></div>
+      <div class="fg"><label class="fl">Base Price (LBC)</label><input class="fi" id="editBasePrice" type="number" step="0.01" min="0" value="0"></div>
+
+      <div class="grid2">
+        <div class="fg">
+          <label class="fl">Update Image (Optional)</label>
+          <div class="file-input-wrapper">
+            <input type="file" id="editImageFile" accept="image/*" onchange="updateFileName(this, 'editImgName', 'Choose New Image (Optional)')">
+            <div class="file-input-display"><i class="fas fa-image"></i><span id="editImgName" class="file-name-text">Choose New Image (Optional)</span></div>
+          </div>
+        </div>
+        <div class="fg">
+          <label class="fl">Update PDF (Optional)</label>
+          <div class="file-input-wrapper">
+            <input type="file" id="editPdfFile" accept="application/pdf" onchange="updateFileName(this, 'editPdfName', 'Choose New PDF (Optional)')">
+            <div class="file-input-display"><i class="fas fa-file-pdf"></i><span id="editPdfName" class="file-name-text">Choose New PDF (Optional)</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="fg" style="margin-top: 10px;">
+        <label class="fl">Update Durations & Prices</label>
+        <div style="display:flex; gap:10px; align-items:end; margin-bottom:10px;">
+          <div style="flex:1">
+            <select class="fs" id="editDurSelect">
+              <option value="86400">1 Day</option>
+              <option value="604800">1 Week</option>
+              <option value="2592000">1 Month</option>
+            </select>
+          </div>
+          <div style="flex:1">
+            <input class="fi" id="editDurPrice" type="number" step="0.01" min="0" placeholder="Price (LBC)">
+          </div>
+          <button class="btn btn-a btn-sm" type="button" onclick="addEditDuration()"><i class="fas fa-plus"></i></button>
+        </div>
+        <div class="chips" id="editDurList"></div>
+      </div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end; margin-top: 20px;">
+        <button class="btn btn-o" onclick="document.getElementById('manageBookModal').style.display='none'">Cancel</button>
+        <button class="btn btn-d" id="btnToggleStatus" onclick="toggleBookStatus()"><i class="fas fa-eye-slash"></i> Toggle Status</button>
+        <button class="btn btn-p" id="btnUpdateBook" onclick="updateBookDetails()"><i class="fas fa-save"></i> Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dynamic Borrow Modal -->
+  <div class="confirm-overlay" id="borrowModal">
+    <div class="confirm-card borrow-modal-card">
+      <h2 style="margin-bottom: 15px; font-size: 1.3rem;"><i class="fas fa-hand-holding" style="color:var(--pri)"></i> Borrow Book</h2>
+
+      <div class="borrow-book-info">
+        <img src="" id="bModalImg" class="borrow-book-img" alt="Cover">
+        <div class="borrow-book-details">
+          <h3 id="bModalTitle">Book Title</h3>
+          <p id="bModalAuthor">Author</p>
+          <span class="badge b-g">Available</span>
+        </div>
+      </div>
+
+      <div class="fg">
+        <label class="fl">Select Borrow Duration</label>
+        <select class="fs" id="bModalDuration" onchange="updateBorrowPrice()"></select>
+      </div>
+
+      <div class="borrow-price-summary">
+        <div class="borrow-price-row">
+          <span>Base Book Price:</span>
+          <span id="bModalBasePrice">0 LBC</span>
+        </div>
+        <div class="borrow-price-row">
+          <span>Duration Fee:</span>
+          <span id="bModalFee">0 LBC</span>
+        </div>
+        <div class="borrow-price-total">
+          <span>Final Cost:</span>
+          <span id="bModalTotal">0 LBC</span>
+        </div>
+      </div>
+
+      <input type="hidden" id="bModalBookId">
+
+      <div style="display:flex;gap:10px;justify-content:flex-end; margin-top: 20px;">
+        <button class="btn btn-o" onclick="document.getElementById('borrowModal').style.display='none'">Cancel</button>
+        <button class="btn btn-p" id="btnConfirmBorrow" onclick="executeBorrow()"><i class="fas fa-check"></i> Approve & Borrow</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Secure PDF Viewer Overlay -->
+  <div class="pdf-overlay" id="pdfOverlay">
+    <div class="pdf-header">
+      <div class="pdf-title" id="pdfViewerTitle">Reading: Book Title</div>
+      <div class="pdf-tools" id="pdfTools">
+        <button class="btn btn-o btn-sm" style="color:#fff; border-color:#555;" onclick="toggleDrawMode()" id="btnDrawMode"><i class="fas fa-pen"></i> Draw</button>
+        <input type="color" id="penColor" value="#ff0000" style="width:30px; height:30px; border:none; cursor:pointer; background:none;">
+        <button class="btn btn-o btn-sm" style="color:#fff; border-color:#555;" onclick="clearCanvas()"><i class="fas fa-trash"></i> Clear</button>
+      </div>
+      <button class="pdf-close" onclick="closePdfViewer()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="pdf-container">
+      <iframe id="pdfIframe" class="pdf-iframe" src="" allowfullscreen></iframe>
+      <!-- Canvas overlay for drawing directly on top of the iframe -->
+      <canvas id="pdfCanvas" class="pdf-canvas"></canvas>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sb-head">
+      <div class="sb-logo"><div class="sb-logo-icon"><i class="fas fa-book-open"></i></div><div><h1>Library DApp</h1><p>Blockchain Registry</p></div></div>
+    </div>
+    <div class="sb-role is-user" id="sbRole"><i class="fas fa-user"></i> Connecting...</div>
+    <nav class="sb-nav">
+      <!-- Normal User Navigation -->
+      <div class="sb-sec">Browse</div>
+      <button class="ni act" data-p="home"><i class="fas fa-house"></i>Home</button>
+      <button class="ni" data-p="catalog"><i class="fas fa-book"></i>Full Catalog</button>
+      <button class="ni" data-p="borrow"><i class="fas fa-hand-holding"></i>My Borrowed Books</button>
+      <div class="sb-sec">Account</div>
+      <button class="ni" data-p="balances"><i class="fas fa-coins"></i>Balance Checker</button>
+      <button class="ni" data-p="history"><i class="fas fa-clock-rotate-left"></i>Activity History</button>
+
+      <!-- Admin Navigation (Synchronized directly from Admin.html) -->
+      <div class="sb-sec admin-only" style="display:none">Admin View</div>
+      <a class="ni admin-only" href="/admin" style="display:none"><i class="fas fa-chart-pie"></i>Dashboard Panel</a>
+
+      <div class="sb-sec admin-only" style="display:none">Management</div>
+      <button class="ni admin-only" data-p="a-add" style="display:none"><i class="fas fa-plus-circle"></i>Add Book</button>
+      <button class="ni admin-only" data-p="a-batch" style="display:none"><i class="fas fa-layer-group"></i>Batch Add</button>
+      <button class="ni admin-only" data-p="a-manage" style="display:none"><i class="fas fa-book"></i>Manage Books</button>
+      <button class="ni admin-only" data-p="a-ctrl" style="display:none"><i class="fas fa-sliders"></i>Controls</button>
+
+      <div class="sb-sec admin-only" style="display:none">System</div>
+      <button class="ni admin-only" data-p="a-xfer" style="display:none"><i class="fas fa-right-left"></i>Ownership</button>
+      <button class="ni admin-only" data-p="a-sec" style="display:none"><i class="fas fa-shield-halved"></i>Security Test</button>
+    </nav>
+    <div class="sb-foot" style="border-top: 1px solid rgba(255,255,255,.08); padding-top: 10px;">
+      <button class="ni" id="btnLogout" style="color: #ff8a80;"><i class="fas fa-sign-out-alt"></i> Logout</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main" id="mainArea">
+    <div class="topbar">
+      <div class="tb-left"><button class="hamburger" id="ham" aria-label="Menu"><i class="fas fa-bars"></i></button><h2 id="pgTitle">Home</h2></div>
+      <div class="tb-right">
+        <div class="spill on" id="statusPill"><span class="dot"></span><span id="statusText">Running</span></div>
+        <div style="font-size:.78rem;color:var(--fg2);display:flex;align-items:center;gap:5px"><i class="fas fa-link" style="color:var(--accent)"></i><span id="topAddr" style="font-family:monospace;font-size:.74rem">—</span></div>
+      </div>
+    </div>
+    <div class="content">
+
+      <!-- HOME -->
+      <div class="pg act" id="pg-home">
+        <div class="hero">
+          <div class="hero-deco"><span></span><span></span><span></span></div>
+          <div class="hero-grid"></div>
+          <div class="hero-body">
+            <h1>Your Library<br>On The <em>Blockchain</em></h1>
+            <p>Every loan, every return — permanently logged, fully transparent, impossible to dispute.</p>
+            <button class="btn btn-a" onclick="nav('catalog')"><i class="fas fa-compass"></i> Browse Catalog</button>
+            <div class="hero-stats">
+              <div class="hs-item"><div class="hs-num" id="hBooks">—</div><div class="hs-lbl">Books</div></div>
+              <div class="hs-item"><div class="hs-num" id="hAvail">—</div><div class="hs-lbl">Available</div></div>
+              <div class="hs-item"><div class="hs-num" id="hTx">—</div><div class="hs-lbl">Transactions</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="stat-row" id="dashStats"></div>
+        <div class="sec-head"><h2>Featured Books</h2><a href="#" onclick="nav('catalog');return false">View All <i class="fas fa-arrow-right" style="font-size:.7rem"></i></a></div>
+        <div class="book-grid" id="featGrid"></div>
+        <div class="grid2e">
+          <div class="card"><div class="ct"><i class="fas fa-fire"></i> Most Borrowed</div><div class="tw" id="topBk"></div></div>
+          <div class="card"><div class="ct"><i class="fas fa-users"></i> Top 3 Active Users</div><div id="topUs"></div></div>
+        </div>
+      </div>
+
+      <!-- CATALOG -->
+      <div class="pg" id="pg-catalog">
+        <div class="sec-head"><h2>Full Catalog</h2></div>
+        <div class="book-grid" id="catGrid"></div>
+      </div>
+
+      <!-- BORROW / RETURN (My Borrowed Books) -->
+      <div class="pg" id="pg-borrow">
+        <div class="grid2">
+          <div class="card" style="grid-column: 1 / -1; max-width: 600px; margin: 0 auto;">
+            <div class="ct"><i class="fas fa-arrow-right-to-bracket"></i> My Active Loans</div>
+            <p style="color:var(--fg2);font-size:.88rem;margin-bottom:14px">Read your borrowed books or return them to the library.</p>
+
+            <div id="activeLoansContainer">
+              <p style="color:var(--fg2); font-size: .9rem;">Loading active loans...</p>
+            </div>
+
+            <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border);">
+               <div class="fg"><label class="fl">Return a Book</label><select class="fs" id="rtSel"></select></div>
+               <button class="btn btn-a" id="btnReturn"><i class="fas fa-rotate-left"></i> Confirm Return</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BALANCE CHECKER -->
+      <div class="pg" id="pg-balances">
+        <div class="card" style="max-width:520px">
+          <div class="ct"><i class="fas fa-magnifying-glass-dollar"></i> Check Any Address</div>
+          <div class="fg"><label class="fl">Wallet Address</label><input class="fi" id="balAddr" placeholder="Leave blank to check your own"></div>
+          <button class="btn btn-p btn-sm" id="btnCheckBal"><i class="fas fa-search"></i> Check</button>
+          <div id="balRes" style="margin-top:18px;display:none"></div>
+        </div>
+      </div>
+
+      <!-- ACTIVITY HISTORY -->
+      <div class="pg" id="pg-history">
+        <div class="card">
+          <div class="ct"><i class="fas fa-clock-rotate-left"></i> Personal Activity History</div>
+          <div class="fg"><label class="fl">Wallet Address</label><input class="fi" id="histAddr" placeholder="Leave blank for your history"></div>
+          <button class="btn btn-p btn-sm" id="btnShowHist"><i class="fas fa-filter"></i> Check Activity</button>
+          <div id="histRes" style="margin-top:18px"></div>
+        </div>
+      </div>
+
+      <!-- ADMIN PAGES INSIDE INDEX -->
+      <!-- MANAGE BOOKS -->
+      <div class="pg" id="pg-a-manage">
+        <div class="sec-head">
+          <h2>Manage Library Catalog</h2>
+          <button class="btn btn-p btn-sm" onclick="nav('a-add')"><i class="fas fa-plus"></i> Add New</button>
+        </div>
+        <div class="book-grid" id="adminBookGrid"></div>
+      </div>
+
+      <!-- ADD BOOK -->
+      <div class="pg" id="pg-a-add">
+        <div class="card" style="max-width:520px">
+          <div class="ct"><i class="fas fa-plus-circle"></i> Add a New Book</div>
+          <div class="fg"><label class="fl">Title</label><input class="fi" id="aTitle" placeholder="Book title"></div>
+          <div class="fg"><label class="fl">Author</label><input class="fi" id="aAuthor" placeholder="Author name"></div>
+          <div class="fg"><label class="fl">Base Price (LBC)</label><input class="fi" id="aBasePrice" type="number" step="0.01" min="0" value="0" placeholder="e.g. 5.0"></div>
+
+          <div class="grid2">
+            <div class="fg">
+              <label class="fl">Book Cover Image</label>
+              <div class="file-input-wrapper">
+                <input type="file" id="aImage" accept="image/*" onchange="updateFileName(this, 'imgName', 'Choose Image')">
+                <div class="file-input-display"><i class="fas fa-image"></i><span id="imgName" class="file-name-text">Choose Image</span></div>
+              </div>
+            </div>
+            <div class="fg">
+              <label class="fl">Book File (PDF)</label>
+              <div class="file-input-wrapper">
+                <input type="file" id="aPdf" accept="application/pdf" onchange="updateFileName(this, 'pdfName', 'Choose PDF')">
+                <div class="file-input-display"><i class="fas fa-file-pdf"></i><span id="pdfName" class="file-name-text">Choose PDF</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="fg" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border);">
+            <label class="fl">Pricing Durations (Required)</label>
+            <p style="color:var(--fg2);font-size:.75rem;margin-bottom:10px;">Set additional costs based on borrow duration.</p>
+            <div style="display:flex; gap:10px; align-items:end; margin-bottom:10px;">
+              <div style="flex:1">
+                <select class="fs" id="durSelect">
+                  <option value="86400">1 Day</option>
+                  <option value="604800">1 Week</option>
+                  <option value="2592000">1 Month</option>
+                </select>
+              </div>
+              <div style="flex:1">
+                <input class="fi" id="durPrice" type="number" step="0.01" min="0" placeholder="Price (LBC)">
+              </div>
+              <button class="btn btn-a btn-sm" type="button" onclick="addDuration()"><i class="fas fa-plus"></i></button>
+            </div>
+            <div class="chips" id="durList"></div>
+          </div>
+
+          <button class="btn btn-p" id="btnAddBook" style="margin-top: 15px; width: 100%; justify-content: center;"><i class="fas fa-check"></i> Publish Book</button>
+        </div>
+      </div>
+
+      <!-- BATCH ADD -->
+      <div class="pg" id="pg-a-batch">
+        <div class="card">
+          <div class="ct"><i class="fas fa-layer-group"></i> Batch Add Books</div>
+          <p style="color:var(--fg2);font-size:.88rem;margin-bottom:14px">Set the number of books and fill all their details (Image, PDF, Prices) to batch upload them to the blockchain.</p>
+          <div class="batch-count-ctl">
+              <div class="fg" style="margin-bottom:0">
+                  <label class="fl">Number of Books</label>
+                  <input class="fi" type="number" id="batchCount" min="1" max="20" value="2" style="width: 120px;">
+              </div>
+          </div>
+          <div id="batchInputsContainer" style="margin-bottom: 20px;"></div>
+          <button class="btn btn-p" id="btnBatch"><i class="fas fa-layer-group"></i> Execute Batch Add</button>
+        </div>
+      </div>
+
+      <!-- CONTROLS -->
+      <div class="pg" id="pg-a-ctrl">
+        <div class="grid2">
+          <div class="card"><div class="ct"><i class="fas fa-pause-circle"></i> Pause / Resume</div>
+            <p style="color:var(--fg2);font-size:.88rem;margin-bottom:14px">Emergency stop — blocks all user actions.</p>
+            <div style="display:flex;gap:8px"><button class="btn btn-d btn-sm" id="btnPause"><i class="fas fa-pause"></i> Pause</button><button class="btn btn-p btn-sm" id="btnResume" disabled><i class="fas fa-play"></i> Resume</button></div>
+          </div>
+          <div class="card"><div class="ct"><i class="fas fa-coins"></i> Mint Library Coins</div>
+            <div class="fg">
+              <label class="fl">Select User</label>
+              <select class="fs" id="mintSelect">
+                  <option value="">Loading users...</option>
+              </select>
+            </div>
+            <div style="text-align:center; font-weight:800; color:var(--fg2); margin:15px 0;">— OR —</div>
+            <div class="fg">
+              <label class="fl">Recipient Address (Manual)</label>
+              <input class="fi" id="mintAddr" placeholder="0x...">
+            </div>
+            <div class="fg"><label class="fl">Amount (LBC)</label><input class="fi" id="mintAmt" type="number" min="1" value="100"></div>
+            <button class="btn btn-a btn-sm" id="btnMint"><i class="fas fa-plus"></i> Mint</button>
+          </div>
+          <div class="card">
+            <div class="ct"><i class="fas fa-file-csv"></i> Export Balances (CSV)</div>
+            <p style="color:var(--fg2);font-size:.88rem;margin-bottom:14px">Scan blockchain and export user balances.</p>
+            <button class="btn btn-p btn-sm" id="btnExportCsv"><i class="fas fa-download"></i> Export Snapshot</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TRANSFER OWNERSHIP -->
+      <div class="pg" id="pg-a-xfer">
+        <div class="card" style="max-width:520px">
+          <div class="ct"><i class="fas fa-right-left"></i> Transfer Admin Ownership</div>
+          <div class="albar w" style="margin-bottom:16px"><i class="fas fa-triangle-exclamation"></i><span>This is <strong>irreversible</strong>. You will permanently lose admin privileges.</span></div>
+          <div class="fg">
+            <label class="fl">Select User from Network</label>
+            <select class="fs" id="xferSelect">
+                <option value="">Loading users...</option>
+            </select>
+          </div>
+          <div style="text-align:center; font-weight:800; color:var(--fg2); margin:15px 0;">— OR —</div>
+          <div class="fg">
+            <label class="fl">New Admin Address (Manual)</label>
+            <input class="fi" id="newAdm" placeholder="0x...">
+          </div>
+          <button class="btn btn-d" id="btnXfer" style="margin-top: 10px;"><i class="fas fa-right-left"></i> Transfer Ownership</button>
+          <div id="xferRes" style="margin-top:18px"></div>
+        </div>
+      </div>
+
+      <!-- SECURITY TEST -->
+      <div class="pg" id="pg-a-sec">
+        <div class="card" style="max-width:600px">
+          <div class="ct"><i class="fas fa-shield-halved"></i> Automated Security Tests</div>
+          <p style="color:var(--fg2);font-size:.88rem;margin-bottom:18px">Verify that non-admin accounts are correctly blocked from admin functions.</p>
+          <button class="btn btn-p" id="btnSec"><i class="fas fa-play"></i> Run All Tests</button>
+          <div id="secRes" style="margin-top:18px"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Toasts -->
+  <div class="toast-w" id="toastW"></div>
+
+  <script src="js/api.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    function checkContext(e) {
+      if(document.getElementById('pdfOverlay').style.display === 'flex') {
+        e.preventDefault();
+        return false;
+      }
+      return true;
+    }
+  </script>
+</body>
+</html>

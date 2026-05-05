@@ -1,0 +1,15 @@
+# Environments
+venv/
+env/
+.env
+
+# Uploads & Generated Data
+config.json
+
+# Python Cache
+__pycache__/
+*.pyc
+
+# IDEs
+.idea/
+.vscode/

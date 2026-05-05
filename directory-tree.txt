@@ -1,0 +1,27 @@
+campus_library_dapp/
+├── app/
+│   ├── terminal.py
+│   └── web_server.py
+├── contracts/
+│   ├── LibraryCoin.sol
+│   └── LibraryRegistry.sol
+├── data/
+│   ├── balances_snapshot.csv
+│   └── snapshot.csv
+├── frontend/
+│   ├── css/
+│   │   └── style.css
+│   ├── js/
+│   │   ├── api.js
+│   │   └── ui.js
+│   ├── admin.html
+│   ├── dashboard.html
+│   └── index.html
+├── scripts/
+│   ├── auto_setup.py
+│   ├── background_jobs.py
+│   └── security_tests.py
+├── README.md
+├── config.json
+├── config.py
+└── requirements.txt
