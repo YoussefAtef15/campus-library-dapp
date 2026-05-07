@@ -121,7 +121,7 @@ campus_library_dapp/
 ### Installation
 
 ```bash
-git clone [https://github.com/omaryasser3060/campus-library-dapp.git](https://github.com/omaryasser3060/campus-library-dapp.git)
+git clone [https://github.com/YoussefAtef15/campus-library-dapp.git]
 cd campus_library_dapp
 
 python -m venv venv
